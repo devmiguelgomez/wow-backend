@@ -91,7 +91,15 @@ const chatController = {
   async sendMessage(req, res) {
     try {
       const { message } = req.body;
+      
+      if (!message || typeof message !== 'string') {
+        return res.status(400).json({ 
+          error: 'El mensaje es requerido y debe ser una cadena de texto' 
+        });
+      }
+
       const ipAddress = getClientIP(req);
+      console.log('IP del cliente:', ipAddress); // Para debugging
 
       // Buscar o crear conversación para esta IP
       let conversation = await Conversation.findOne({ ipAddress });
@@ -105,28 +113,41 @@ const chatController = {
         content: message
       });
 
-      // Obtener respuesta del modelo
-      const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-      const result = await model.generateContent(message);
-      const response = await result.response;
-      const botResponse = response.text();
+      try {
+        // Obtener respuesta del modelo
+        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+        const result = await model.generateContent(message);
+        const response = await result.response;
+        const botResponse = response.text();
 
-      // Agregar respuesta del bot
-      conversation.messages.push({
-        role: 'assistant',
-        content: botResponse
-      });
+        // Agregar respuesta del bot
+        conversation.messages.push({
+          role: 'assistant',
+          content: botResponse
+        });
 
-      conversation.lastUpdated = new Date();
-      await conversation.save();
+        conversation.lastUpdated = new Date();
+        await conversation.save();
 
-      res.json({
-        response: botResponse,
-        conversationId: conversation._id
-      });
+        res.json({
+          response: botResponse,
+          conversationId: conversation._id
+        });
+      } catch (geminiError) {
+        console.error('Error con Gemini:', geminiError);
+        // Si hay un error con Gemini, guardamos el mensaje del usuario pero respondemos con un error
+        await conversation.save();
+        res.status(500).json({ 
+          error: 'Error al procesar la respuesta de Gemini',
+          details: geminiError.message
+        });
+      }
     } catch (error) {
       console.error('Error en sendMessage:', error);
-      res.status(500).json({ error: 'Error al procesar el mensaje' });
+      res.status(500).json({ 
+        error: 'Error al procesar el mensaje',
+        details: error.message
+      });
     }
   },
 
@@ -144,7 +165,10 @@ const chatController = {
       res.json({ messages: conversation.messages });
     } catch (error) {
       console.error('Error en getConversation:', error);
-      res.status(500).json({ error: 'Error al obtener la conversación' });
+      res.status(500).json({ 
+        error: 'Error al obtener la conversación',
+        details: error.message
+      });
     }
   }
 };
