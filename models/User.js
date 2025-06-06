@@ -19,9 +19,29 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  chatHistory: [{
-    message: String,
-    response: String,
+  allianceChatHistory: [{
+    message: {
+      type: String,
+      required: true
+    },
+    response: {
+      type: String,
+      required: true
+    },
+    timestamp: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  hordeChatHistory: [{
+    message: {
+      type: String,
+      required: true
+    },
+    response: {
+      type: String,
+      required: true
+    },
     timestamp: {
       type: Date,
       default: Date.now
