@@ -81,29 +81,13 @@ const getInitialMessage = (faction) => {
 const chatController = {
   async sendMessage(req, res) {
     try {
-      const { sessionId, message, faction } = req.body;
+      const { message } = req.body;
+      const ipAddress = req.ip || req.connection.remoteAddress;
 
-      if (!sessionId || !message) {
-        return res.status(400).json({ error: 'Se requiere sessionId y message' });
-      }
-
-      // Buscar o crear conversación
-      let conversation = await Conversation.findOne({ sessionId });
+      // Buscar o crear conversación para esta IP
+      let conversation = await Conversation.findOne({ ipAddress });
       if (!conversation) {
-        conversation = new Conversation({ sessionId, messages: [] });
-      }
-
-      // Si es mensaje inicial, responder directamente
-      if (message.startsWith('Iniciar conversación como')) {
-        const response = getInitialMessage(faction);
-        
-        conversation.messages.push({
-          role: 'assistant',
-          content: response
-        });
-
-        await conversation.save();
-        return res.json({ response, conversation });
+        conversation = new Conversation({ ipAddress });
       }
 
       // Agregar mensaje del usuario
@@ -112,86 +96,44 @@ const chatController = {
         content: message
       });
 
-      try {
-        // Configurar el modelo de Gemini
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-        
-        const systemPrompt = getSystemPrompt(faction);
-        
-        // Crear el contexto del chat
-        const chat = model.startChat({
-          history: [
-            { role: 'user', parts: [{ text: systemPrompt }] },
-            { role: 'model', parts: [{ text: `Entendido, actúo como un ${faction === 'alliance' ? 'noble de la Alianza' : 'guerrero de la Horda'}.` }] },
-            ...conversation.messages.slice(0, -1).map(msg => ({
-              role: msg.role === 'user' ? 'user' : 'model',
-              parts: [{ text: msg.content }]
-            }))
-          ],
-          generationConfig: {
-            temperature: 0.8,
-            topK: 40,
-            topP: 0.95,
-            maxOutputTokens: 200,
-          },
-        });
+      // Obtener respuesta del modelo
+      const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+      const result = await model.generateContent(message);
+      const response = await result.response;
+      const botResponse = response.text();
 
-        // Obtener respuesta de Gemini
-        const result = await chat.sendMessage(message);
-        const response = await result.response;
-        const botResponse = response.text();
-
-        // Agregar respuesta del bot
-        conversation.messages.push({
-          role: 'assistant',
-          content: botResponse
-        });
-
-        // Guardar conversación
-        await conversation.save();
-
-        res.json({
-          response: botResponse,
-          conversation: conversation
-        });
-      } catch (geminiError) {
-        console.error('Error con Gemini:', geminiError);
-        // Si hay un error con Gemini, guardamos el mensaje del usuario pero respondemos con un error
-        await conversation.save();
-        res.status(500).json({ 
-          error: 'Error al procesar la respuesta de Gemini',
-          details: geminiError.message
-        });
-      }
-
-    } catch (error) {
-      console.error('Error en chatController:', error);
-      res.status(500).json({ 
-        error: 'Error al procesar el mensaje',
-        details: error.message
+      // Agregar respuesta del bot
+      conversation.messages.push({
+        role: 'assistant',
+        content: botResponse
       });
+
+      conversation.lastUpdated = new Date();
+      await conversation.save();
+
+      res.json({
+        response: botResponse,
+        conversationId: conversation._id
+      });
+    } catch (error) {
+      console.error('Error en sendMessage:', error);
+      res.status(500).json({ error: 'Error al procesar el mensaje' });
     }
   },
 
   async getConversation(req, res) {
     try {
-      const { sessionId } = req.params;
-      const conversation = await Conversation.findOne({ sessionId });
-      
+      const ipAddress = req.ip || req.connection.remoteAddress;
+      const conversation = await Conversation.findOne({ ipAddress });
+
       if (!conversation) {
-        return res.status(404).json({ 
-          error: 'Conversación no encontrada',
-          message: 'Esta es una nueva sesión de chat'
-        });
+        return res.json({ messages: [] });
       }
 
-      res.json(conversation);
+      res.json({ messages: conversation.messages });
     } catch (error) {
-      console.error('Error al obtener conversación:', error);
-      res.status(500).json({ 
-        error: 'Error al obtener la conversación',
-        details: error.message
-      });
+      console.error('Error en getConversation:', error);
+      res.status(500).json({ error: 'Error al obtener la conversación' });
     }
   }
 };

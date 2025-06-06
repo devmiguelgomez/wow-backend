@@ -17,17 +17,13 @@ const messageSchema = new mongoose.Schema({
 });
 
 const conversationSchema = new mongoose.Schema({
-  sessionId: {
+  ipAddress: {
     type: String,
     required: true,
-    unique: true
+    index: true
   },
   messages: [messageSchema],
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  updatedAt: {
+  lastUpdated: {
     type: Date,
     default: Date.now
   }
