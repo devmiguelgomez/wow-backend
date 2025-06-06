@@ -30,14 +30,12 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/wow-chatb
 // Configuración de Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-// Rutas de autenticación
+// Rutas de autenticación (no requieren auth)
 app.use('/api/auth', authRoutes);
 
-// Rutas protegidas
+// Rutas protegidas (chat y conversaciones) - requieren autenticación
 app.use('/api/conversations', auth, require('./routes/conversations'));
-
-// Rutas
-app.use('/api/chat', chatRoutes);
+app.use('/api/chat', auth, chatRoutes);
 
 app.get('/', (req, res) => {
   res.json({ message: 'API del Chatbot de World of Warcraft funcionando' });
