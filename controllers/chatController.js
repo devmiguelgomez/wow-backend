@@ -18,9 +18,9 @@ const getSystemPrompt = (faction) => {
 
 const getInitialMessage = (faction) => {
   if (faction === 'alliance') {
-    return `¡Saludos, ciudadano! Soy Sir Marcus Whiteheart, Capitán de la Guardia Real de Ventormenta. \\n    He servido a Su Majestad el Rey Anduin Wrynn y a su difunto padre antes que él. Por la Luz, \\n    es un honor conversar contigo. ¿En qué puedo asistirte? ¿Tienes preguntas sobre nuestro \\n    noble reino o sobre los asuntos de la Alianza?`;
+    return `¡Saludos, ciudadano! Soy Sir Marcus Whiteheart, Capitán de la Guardia Real de Ventormenta. <br/>    He servido a Su Majestad el Rey Anduin Wrynn y a su difunto padre antes que él. Por la Luz, <br/>    es un honor conversar contigo. ¿En qué puedo asistirte? ¿Tienes preguntas sobre nuestro <br/>    noble reino o sobre los asuntos de la Alianza?`;
   } else {
-    return `¡Lok\'tar Ogar, guerrero! Soy Grash\'kala Furia de Hierro, Sargento de la Guardia de Orgrimmar. \\n    He servido a la Horda bajo muchos líderes: Thrall el Chamán del Mundo, Vol\'jin el Caudillo Trol, \\n    y he visto subir y caer a muchos más. Mi hacha ha defendido estas tierras por décadas. \\n    ¿Qué necesitas saber de la Horda o de nuestras batallas? ¡Habla!`;
+    return `¡Lok\'tar Ogar, guerrero! Soy Grash\'kala Furia de Hierro, Sargento de la Guardia de Orgrimmar. <br/>    He servido a la Horda bajo muchos líderes: Thrall el Chamán del Mundo, Vol\'jin el Caudillo Trol, <br/>    y he visto subir y caer a muchos más. Mi hacha ha defendido estas tierras por décadas. <br/>    ¿Qué necesitas saber de la Horda o de nuestras batallas? ¡Habla!`;
   }
 };
 
@@ -46,22 +46,34 @@ const chatController = {
         user[chatHistoryKey] = [];
       }
 
+      // Agregar el mensaje del usuario al historial antes de enviar a Gemini
+      user[chatHistoryKey].push({
+        message: message,
+        response: '' // Placeholder para la respuesta de Gemini
+      });
+
       try {
         // Configurar el modelo de Gemini
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
         const systemPrompt = getSystemPrompt(faction);
 
-        // Crear el contexto del chat usando el historial específico de la facción del usuario
+        // Construir el historial para Gemini, asegurando pares usuario/modelo
+        const geminiHistory = [
+          { role: 'user', parts: [{ text: systemPrompt }] },
+          { role: 'model', parts: [{ text: `Entendido, actúo como un ${faction === 'alliance' ? 'noble de la Alianza' : 'guerrero de la Horda'}.` }] }
+        ];
+
+        // Agregar historial existente, asegurando pares correctos
+        user[chatHistoryKey].forEach(msg => {
+          if (msg.message && msg.response) {
+            geminiHistory.push({ role: 'user', parts: [{ text: msg.message }] });
+            geminiHistory.push({ role: 'model', parts: [{ text: msg.response }] });
+          }
+        });
+
         const chat = model.startChat({
-          history: [
-            { role: 'user', parts: [{ text: systemPrompt }] },
-            { role: 'model', parts: [{ text: `Entendido, actúo como un ${faction === 'alliance' ? 'noble de la Alianza' : 'guerrero de la Horda'}.` }] },
-            ...user[chatHistoryKey].map(msg => [
-              { role: 'user', parts: [{ text: msg.message }] },
-              { role: 'model', parts: [{ text: msg.response }] }
-            ]).flat()
-          ],
+          history: geminiHistory,
           generationConfig: {
             temperature: 0.8,
             topK: 40,
@@ -75,11 +87,17 @@ const chatController = {
         const response = await result.response;
         const botResponse = response.text();
 
-        // Agregar mensaje del usuario y respuesta de Gemini al historial específico de la facción
-        user[chatHistoryKey].push({
-          message: message,
-          response: botResponse
-        });
+        // Encontrar el último mensaje del usuario (el que acabamos de añadir) y actualizarlo con la respuesta de Gemini
+        const lastUserMessageIndex = user[chatHistoryKey].length - 1;
+        if (lastUserMessageIndex !== -1 && user[chatHistoryKey][lastUserMessageIndex].message === message) {
+          user[chatHistoryKey][lastUserMessageIndex].response = botResponse;
+        } else {
+          // Si no se encontró el último mensaje del usuario como esperábamos, agregamos el par completo
+          user[chatHistoryKey].push({
+            message: message,
+            response: botResponse
+          });
+        }
 
         // Guardar usuario con nuevo historial
         await user.save();
@@ -88,7 +106,7 @@ const chatController = {
           response: botResponse,
           chatHistory: user[chatHistoryKey].map(msg => [{
             role: 'user', content: msg.message
-          }, { role: 'assistant', content: msg.response }]).flat() // Devolver todo el historial formateado
+          }, { role: 'assistant', content: msg.response.replace(/\\n/g, '<br/>') }]).flat() // Devolver todo el historial formateado con saltos de línea
         });
       } catch (geminiError) {
         console.error('Error con Gemini:', geminiError);
@@ -134,25 +152,28 @@ const chatController = {
       if (chatHistory.length === 0) {
         const initialMessageContent = getInitialMessage(faction);
         user[chatHistoryKey].push({
-          message: 'initialMessage', // Usar una clave consistente para el mensaje del usuario (aunque sea del bot inicialmente en el frontend)
+          message: 'initialMessage', // Usar una clave consistente para el mensaje del usuario inicial (marcador)
           response: initialMessageContent
         });
         await user.save();
       }
 
-      // Devolver todo el historial formateado
-      const formattedHistory = user[chatHistoryKey].map(msg => [{
-        role: 'user',
-        content: msg.message
-      }, { 
-        role: 'assistant',
-        content: msg.response
-      }]).flat();
-
-      // Si el primer mensaje en el historial es 'initialMessage', lo mostramos solo como del asistente en el frontend
-      if (formattedHistory.length > 0 && formattedHistory[0].content === 'initialMessage') {
-        formattedHistory[0] = { role: 'assistant', content: formattedHistory[0].response };
-      }
+      // Devolver todo el historial formateado, asegurando el par usuario/asistente y formateando saltos de línea
+      const formattedHistory = user[chatHistoryKey].map(msg => {
+        // Si es el mensaje inicial, solo devolver el mensaje del asistente formateado
+        if (msg.message === 'initialMessage') {
+          return { role: 'assistant', content: msg.response.replace(/\\n/g, '<br/>') };
+        } else {
+          // Para mensajes normales, devolver el par usuario/asistente formateado
+          return [{
+            role: 'user',
+            content: msg.message
+          }, { 
+            role: 'assistant',
+            content: msg.response ? msg.response.replace(/\\n/g, '<br/>') : '' // Asegurar que response existe y formatear
+          }];
+        }
+      }).flat();
 
       res.json({ chatHistory: formattedHistory });
 
