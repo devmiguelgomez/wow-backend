@@ -17,14 +17,10 @@ const messageSchema = new mongoose.Schema({
 });
 
 const conversationSchema = new mongoose.Schema({
-  user: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  title: {
+  sessionId: {
     type: String,
-    default: 'Nueva conversación'
+    required: true,
+    unique: true
   },
   messages: [messageSchema],
   createdAt: {

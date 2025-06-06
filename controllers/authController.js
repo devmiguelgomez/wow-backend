@@ -1,8 +1,7 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'tu_secreto_jwt_super_seguro';
-
+// Registro de usuario
 exports.register = async (req, res) => {
   try {
     const { username, email, password } = req.body;
@@ -23,7 +22,11 @@ exports.register = async (req, res) => {
     await user.save();
 
     // Generar token
-    const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: '24h' });
+    const token = jwt.sign(
+      { userId: user._id },
+      process.env.JWT_SECRET || 'tu_secreto_jwt',
+      { expiresIn: '24h' }
+    );
 
     res.status(201).json({
       message: 'Usuario registrado exitosamente',
@@ -35,10 +38,11 @@ exports.register = async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ message: 'Error al registrar usuario', error: error.message });
+    res.status(500).json({ message: 'Error en el registro', error: error.message });
   }
 };
 
+// Login de usuario
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -56,7 +60,11 @@ exports.login = async (req, res) => {
     }
 
     // Generar token
-    const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: '24h' });
+    const token = jwt.sign(
+      { userId: user._id },
+      process.env.JWT_SECRET || 'tu_secreto_jwt',
+      { expiresIn: '24h' }
+    );
 
     res.json({
       message: 'Login exitoso',
@@ -68,6 +76,6 @@ exports.login = async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ message: 'Error al iniciar sesión', error: error.message });
+    res.status(500).json({ message: 'Error en el login', error: error.message });
   }
 }; 
