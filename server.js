@@ -10,14 +10,16 @@ const auth = require('./middleware/auth');
 const app = express();
 
 // Configuración de CORS
-const corsOptions = {
-  origin: ['http://localhost:5173', 'https://wow-fronted.vercel.app'],
+app.use(cors({
+  origin: true, // Permite todas las solicitudes durante el desarrollo
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
-};
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
+}));
 
-app.use(cors(corsOptions));
+// Middleware para manejar preflight requests
+app.options('*', cors());
+
 app.use(express.json());
 
 // Configuración de MongoDB
