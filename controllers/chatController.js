@@ -40,11 +40,9 @@ const chatController = {
         return res.status(404).json({ error: 'Usuario no encontrado' });
       }
 
-      // Seleccionar el historial correcto según la facción
+      // Seleccionar el historial correcto según la facción y asegurarse de que sea un array
       const chatHistoryKey = faction === 'alliance' ? 'allianceChatHistory' : 'hordeChatHistory';
-
-      // Si es el primer mensaje de la sesión para esta facción, añadir el mensaje inicial de Gemini
-      // Esto se manejará en el frontend. El backend solo procesa la respuesta del usuario.
+      user[chatHistoryKey] = user[chatHistoryKey] || []; // Asegurarse de que es un array
 
       try {
         // Configurar el modelo de Gemini
@@ -86,7 +84,9 @@ const chatController = {
 
         res.json({
           response: botResponse,
-          chatHistory: user[chatHistoryKey] // Devolver solo el historial de la facción actual
+          chatHistory: user[chatHistoryKey].map(msg => [{
+            role: 'user', content: msg.message
+          }, { role: 'assistant', content: msg.response }]).flat() // Devolver todo el historial formateado
         });
       } catch (geminiError) {
         console.error('Error con Gemini:', geminiError);
@@ -120,9 +120,11 @@ const chatController = {
         return res.status(404).json({ error: 'Usuario no encontrado' });
       }
 
-      // Seleccionar el historial correcto según la facción
+      // Seleccionar el historial correcto según la facción y asegurarse de que sea un array
       const chatHistoryKey = faction === 'alliance' ? 'allianceChatHistory' : 'hordeChatHistory';
-      const chatHistory = user[chatHistoryKey] || []; // Devolver historial vacío si no existe
+      user[chatHistoryKey] = user[chatHistoryKey] || []; // Asegurarse de que es un array
+
+      const chatHistory = user[chatHistoryKey];
 
       // Si el historial está vacío, agregar el mensaje inicial de Gemini y guardarlo
       if (chatHistory.length === 0) {
@@ -132,20 +134,16 @@ const chatController = {
           response: initialMessageContent
         });
         await user.save();
-        // Devolver el historial con el mensaje inicial en el formato correcto para el frontend
-        return res.json({ chatHistory: user[chatHistoryKey].map(msg => ({ 
-          role: 'assistant', // Es un mensaje del asistente
-          content: msg.response
-        })) });
       }
-      // Si hay historial, devolverlo en el formato correcto para el frontend
-      const formattedHistory = chatHistory.map(msg => ({
+
+      // Devolver todo el historial formateado
+      const formattedHistory = user[chatHistoryKey].map(msg => [{
         role: 'user',
         content: msg.message
       }, { 
         role: 'assistant',
         content: msg.response
-      })).flat();
+      }]).flat();
 
       res.json({ chatHistory: formattedHistory });
 
