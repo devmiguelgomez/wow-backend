@@ -9,16 +9,9 @@ const auth = require('./middleware/auth');
 
 const app = express();
 
-// Configuración de CORS
-app.use(cors({
-  origin: true, // Permite todas las solicitudes durante el desarrollo
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
-}));
-
-// Middleware para manejar preflight requests
-app.options('*', cors());
+// Configuración de CORS - Eliminaremos la configuración detallada y confiaremos en vercel.json
+// app.use(cors({...})); // Comentado o eliminado
+// app.options('*', cors()); // Comentado o eliminado
 
 app.use(express.json());
 
