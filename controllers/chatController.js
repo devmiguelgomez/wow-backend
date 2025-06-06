@@ -78,11 +78,20 @@ const getInitialMessage = (faction) => {
   }
 };
 
+const getClientIP = (req) => {
+  // Intentar obtener la IP real del cliente
+  const forwardedFor = req.headers['x-forwarded-for'];
+  if (forwardedFor) {
+    return forwardedFor.split(',')[0].trim();
+  }
+  return req.ip || req.connection.remoteAddress;
+};
+
 const chatController = {
   async sendMessage(req, res) {
     try {
       const { message } = req.body;
-      const ipAddress = req.ip || req.connection.remoteAddress;
+      const ipAddress = getClientIP(req);
 
       // Buscar o crear conversación para esta IP
       let conversation = await Conversation.findOne({ ipAddress });
@@ -123,7 +132,9 @@ const chatController = {
 
   async getConversation(req, res) {
     try {
-      const ipAddress = req.ip || req.connection.remoteAddress;
+      const ipAddress = getClientIP(req);
+      console.log('IP del cliente:', ipAddress); // Para debugging
+
       const conversation = await Conversation.findOne({ ipAddress });
 
       if (!conversation) {

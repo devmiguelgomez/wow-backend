@@ -6,6 +6,6 @@ const chatController = require('../controllers/chatController');
 router.post('/send', chatController.sendMessage);
 
 // Ruta para obtener conversación
-router.get('/conversation/:sessionId', chatController.getConversation);
+router.get('/conversation', chatController.getConversation);
 
 module.exports = router; 
