@@ -42,7 +42,7 @@ const chatController = {
 
       // Seleccionar el historial correcto según la facción y asegurarse de que sea un array
       const chatHistoryKey = faction === 'alliance' ? 'allianceChatHistory' : 'hordeChatHistory';
-      user[chatHistoryKey] = user[chatHistoryKey] || []; // Asegurarse de que es un array
+      user[chatHistoryKey] = Array.isArray(user[chatHistoryKey]) ? user[chatHistoryKey] : []; // Asegurarse de que es un array
 
       try {
         // Configurar el modelo de Gemini
@@ -122,7 +122,7 @@ const chatController = {
 
       // Seleccionar el historial correcto según la facción y asegurarse de que sea un array
       const chatHistoryKey = faction === 'alliance' ? 'allianceChatHistory' : 'hordeChatHistory';
-      user[chatHistoryKey] = user[chatHistoryKey] || []; // Asegurarse de que es un array
+      user[chatHistoryKey] = Array.isArray(user[chatHistoryKey]) ? user[chatHistoryKey] : []; // Asegurarse de que es un array
 
       const chatHistory = user[chatHistoryKey];
 
