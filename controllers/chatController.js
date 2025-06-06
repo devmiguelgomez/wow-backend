@@ -42,7 +42,9 @@ const chatController = {
 
       // Seleccionar el historial correcto según la facción y asegurarse de que sea un array
       const chatHistoryKey = faction === 'alliance' ? 'allianceChatHistory' : 'hordeChatHistory';
-      user[chatHistoryKey] = Array.isArray(user[chatHistoryKey]) ? user[chatHistoryKey] : []; // Asegurarse de que es un array
+      if (!user[chatHistoryKey] || !Array.isArray(user[chatHistoryKey])) {
+        user[chatHistoryKey] = [];
+      }
 
       try {
         // Configurar el modelo de Gemini
@@ -122,7 +124,9 @@ const chatController = {
 
       // Seleccionar el historial correcto según la facción y asegurarse de que sea un array
       const chatHistoryKey = faction === 'alliance' ? 'allianceChatHistory' : 'hordeChatHistory';
-      user[chatHistoryKey] = Array.isArray(user[chatHistoryKey]) ? user[chatHistoryKey] : []; // Asegurarse de que es un array
+      if (!user[chatHistoryKey] || !Array.isArray(user[chatHistoryKey])) {
+        user[chatHistoryKey] = [];
+      }
 
       const chatHistory = user[chatHistoryKey];
 
@@ -130,7 +134,7 @@ const chatController = {
       if (chatHistory.length === 0) {
         const initialMessageContent = getInitialMessage(faction);
         user[chatHistoryKey].push({
-          message: 'initialMessage', // Usar una clave consistente
+          message: 'initialMessage', // Usar una clave consistente para el mensaje del usuario (aunque sea del bot inicialmente en el frontend)
           response: initialMessageContent
         });
         await user.save();
@@ -144,6 +148,11 @@ const chatController = {
         role: 'assistant',
         content: msg.response
       }]).flat();
+
+      // Si el primer mensaje en el historial es 'initialMessage', lo mostramos solo como del asistente en el frontend
+      if (formattedHistory.length > 0 && formattedHistory[0].content === 'initialMessage') {
+        formattedHistory[0] = { role: 'assistant', content: formattedHistory[0].response };
+      }
 
       res.json({ chatHistory: formattedHistory });
 
