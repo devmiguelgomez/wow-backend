@@ -9,9 +9,16 @@ const auth = require('./middleware/auth');
 
 const app = express();
 
-// Configuración de CORS - Eliminaremos la configuración detallada y confiaremos en vercel.json
-// app.use(cors({...})); // Comentado o eliminado
-// app.options('*', cors()); // Comentado o eliminado
+// Configuración de CORS para rutas /api
+const apiCorsOptions = {
+  origin: 'https://wow-fronted.vercel.app', // Especifica el origen exacto del frontend
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  credentials: true
+};
+
+// Aplica CORS solo a las rutas que empiezan con /api
+app.use('/api', cors(apiCorsOptions));
 
 app.use(express.json());
 
