@@ -17,13 +17,21 @@ const messageSchema = new mongoose.Schema({
 });
 
 const conversationSchema = new mongoose.Schema({
-  ipAddress: {
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  title: {
     type: String,
-    required: true,
-    index: true
+    default: 'Nueva conversación'
   },
   messages: [messageSchema],
-  lastUpdated: {
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  updatedAt: {
     type: Date,
     default: Date.now
   }

@@ -78,33 +78,32 @@ const getInitialMessage = (faction) => {
   }
 };
 
-const getClientIP = (req) => {
-  // Intentar obtener la IP real del cliente
-  const forwardedFor = req.headers['x-forwarded-for'];
-  if (forwardedFor) {
-    return forwardedFor.split(',')[0].trim();
-  }
-  return req.ip || req.connection.remoteAddress;
-};
-
 const chatController = {
   async sendMessage(req, res) {
     try {
-      const { message } = req.body;
-      
-      if (!message || typeof message !== 'string') {
-        return res.status(400).json({ 
-          error: 'El mensaje es requerido y debe ser una cadena de texto' 
-        });
+      const { sessionId, message, faction } = req.body;
+
+      if (!sessionId || !message) {
+        return res.status(400).json({ error: 'Se requiere sessionId y message' });
       }
 
-      const ipAddress = getClientIP(req);
-      console.log('IP del cliente:', ipAddress); // Para debugging
-
-      // Buscar o crear conversación para esta IP
-      let conversation = await Conversation.findOne({ ipAddress });
+      // Buscar o crear conversación
+      let conversation = await Conversation.findOne({ sessionId });
       if (!conversation) {
-        conversation = new Conversation({ ipAddress });
+        conversation = new Conversation({ sessionId, messages: [] });
+      }
+
+      // Si es mensaje inicial, responder directamente
+      if (message.startsWith('Iniciar conversación como')) {
+        const response = getInitialMessage(faction);
+        
+        conversation.messages.push({
+          role: 'assistant',
+          content: response
+        });
+
+        await conversation.save();
+        return res.json({ response, conversation });
       }
 
       // Agregar mensaje del usuario
@@ -114,9 +113,31 @@ const chatController = {
       });
 
       try {
-        // Obtener respuesta del modelo
-        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-        const result = await model.generateContent(message);
+        // Configurar el modelo de Gemini
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        
+        const systemPrompt = getSystemPrompt(faction);
+        
+        // Crear el contexto del chat
+        const chat = model.startChat({
+          history: [
+            { role: 'user', parts: [{ text: systemPrompt }] },
+            { role: 'model', parts: [{ text: `Entendido, actúo como un ${faction === 'alliance' ? 'noble de la Alianza' : 'guerrero de la Horda'}.` }] },
+            ...conversation.messages.slice(0, -1).map(msg => ({
+              role: msg.role === 'user' ? 'user' : 'model',
+              parts: [{ text: msg.content }]
+            }))
+          ],
+          generationConfig: {
+            temperature: 0.8,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 200,
+          },
+        });
+
+        // Obtener respuesta de Gemini
+        const result = await chat.sendMessage(message);
         const response = await result.response;
         const botResponse = response.text();
 
@@ -126,12 +147,12 @@ const chatController = {
           content: botResponse
         });
 
-        conversation.lastUpdated = new Date();
+        // Guardar conversación
         await conversation.save();
 
         res.json({
           response: botResponse,
-          conversationId: conversation._id
+          conversation: conversation
         });
       } catch (geminiError) {
         console.error('Error con Gemini:', geminiError);
@@ -142,8 +163,9 @@ const chatController = {
           details: geminiError.message
         });
       }
+
     } catch (error) {
-      console.error('Error en sendMessage:', error);
+      console.error('Error en chatController:', error);
       res.status(500).json({ 
         error: 'Error al procesar el mensaje',
         details: error.message
@@ -153,18 +175,19 @@ const chatController = {
 
   async getConversation(req, res) {
     try {
-      const ipAddress = getClientIP(req);
-      console.log('IP del cliente:', ipAddress); // Para debugging
-
-      const conversation = await Conversation.findOne({ ipAddress });
-
+      const { sessionId } = req.params;
+      const conversation = await Conversation.findOne({ sessionId });
+      
       if (!conversation) {
-        return res.json({ messages: [] });
+        return res.status(404).json({ 
+          error: 'Conversación no encontrada',
+          message: 'Esta es una nueva sesión de chat'
+        });
       }
 
-      res.json({ messages: conversation.messages });
+      res.json(conversation);
     } catch (error) {
-      console.error('Error en getConversation:', error);
+      console.error('Error al obtener conversación:', error);
       res.status(500).json({ 
         error: 'Error al obtener la conversación',
         details: error.message
